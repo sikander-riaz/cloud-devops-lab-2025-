@@ -210,10 +210,37 @@ output "nat_gateway_id" {
   value = aws_nat_gateway.my_nat_gateway.id
 }
 
-# output "bastion_public_ip" {
-#   value = aws_instance.bastion.public_ip
-# }
 
-# output "application_private_ip" {
-#   value = aws_instance.application.private_ip
-# }
+
+
+
+
+# tf bucket and dynamo db
+resource "aws_s3_bucket" "tfstatebucket" {
+  bucket = "siku-tfstate-bucket"  
+}
+
+
+resource "aws_s3_bucket_versioning" "tfstatebucket_versioning" {
+  bucket = aws_s3_bucket.tfstatebucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+
+resource "aws_dynamodb_table" "tf_state_table" {
+  name         = "tf_state_table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
+
+
+
+
