@@ -38,4 +38,38 @@ override.tf.json
 .terraformrc
 terraform.rc
 .aws/
+
+# Terraform state files (sensitive and should not be committed)
+*.tfstate
+*.tfstate.*
+terraform.tfstate
+terraform.tfstate.backup
+
+# AWS CLI installation files
+awscliv2.zip
+awscliv2.sig
+aws/
+
+# Ansible inventory files (contain sensitive IPs and credentials)
+inventory.ini
+*.retry
+
+# Ansible vault files
+vault.yml
+vault_pass.txt
+
+# SSH keys
+*.pem
+*.key
+
+# Backend configurations (if they contain sensitive data)
+backend/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
 # End of https://www.toptal.com/developers/gitignore/api/terraform

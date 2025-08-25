@@ -134,9 +134,9 @@ resource "aws_security_group" "private_sg" {
 }
 
 variable "AmiLinux" {
-type = map(string)
+  type = map(string)
   default = {
-    ap-south-1="ami-02d26659fd82cf299"
+    ap-south-1 = "ami-02d26659fd82cf299"
   }
 }
 
@@ -149,16 +149,16 @@ variable "region" {
 
 
 variable "key_name" {
-  default = "sik"
+  default     = "sik"
   description = "the ssh key to use in the EC2 machines"
 }
 resource "aws_instance" "bastion" {
-  ami           = "${lookup(var.AmiLinux, var.region)}"
+  ami                         = lookup(var.AmiLinux, var.region)
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.public_subnet.id
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
   associate_public_ip_address = true
-  key_name                    = "${var.key_name}"
+  key_name                    = var.key_name
 
   root_block_device {
     volume_type = "gp3"
@@ -168,16 +168,25 @@ resource "aws_instance" "bastion" {
   tags = {
     Name = "BastionHost"
   }
+  user_data = <<-EOF
+
+  #!/bin/bash
+   set -e
+  sudo apt update 
+  sudo apt upgrade -y
+  sudo apt install ansible -y
+  EOF
+
 }
 
 
 resource "aws_instance" "application" {
-  ami                    =  "${lookup(var.AmiLinux, var.region)}"
-  instance_type          = "t2.small"
-  subnet_id              = aws_subnet.private_subnet.id
-  vpc_security_group_ids = [aws_security_group.private_sg.id]
+  ami                         = lookup(var.AmiLinux, var.region)
+  instance_type               = "t2.small"
+  subnet_id                   = aws_subnet.private_subnet.id
+  vpc_security_group_ids      = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
-  key_name               = "${var.key_name}"
+  key_name                    = var.key_name
 
   root_block_device {
     volume_type = "gp2"
@@ -187,6 +196,16 @@ resource "aws_instance" "application" {
   tags = {
     Name = "AppServer"
   }
+  user_data = <<-EOF
+  #!/bin/bash
+  sudo apt update -y
+
+  
+  sudo apt install -y ansible
+
+  ansible —version
+EOF
+
 }
 
 output "application_private_ip" {
@@ -216,7 +235,7 @@ output "nat_gateway_id" {
 
 # tf bucket and dynamo db
 resource "aws_s3_bucket" "tfstatebucket" {
-  bucket = "siku-tfstate-bucket"  
+  bucket = "siku-tfstate-bucket"
 }
 
 
