@@ -152,7 +152,7 @@ variable "key_name" {
   default = "sik"
   description = "the ssh key to use in the EC2 machines"
 }
-resource "aws_instance" "web" {
+resource "aws_instance" "bastion" {
   ami           = "${lookup(var.AmiLinux, var.region)}"
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.public_subnet.id
@@ -214,7 +214,6 @@ output "nat_gateway_id" {
 
 
 
-
 # tf bucket and dynamo db
 resource "aws_s3_bucket" "tfstatebucket" {
   bucket = "siku-tfstate-bucket"  
@@ -244,3 +243,43 @@ resource "aws_dynamodb_table" "tf_state_table" {
 
 
 
+
+
+
+
+
+
+
+output "BastionHost" {
+  value = aws_instance.bastion.public_ip
+}
+
+output "applicationHost" {
+  value = aws_instance.application.private_ip
+}
+
+
+output "ssh_key_name" {
+  value = var.key_name
+}
+
+output "public_sg_id" {
+  value = aws_security_group.public_sg.id
+}
+
+
+output "private_sg_id" {
+  value = aws_security_group.private_sg.id
+}
+
+
+
+resource "local_file" "ansible_inventory" {
+  filename = "${path.module}/inventory.ini"
+
+  content = templatefile("${path.module}/inventory.tmpl", {
+    bastion_ip = aws_instance.bastion.public_ip
+    app_ip     = aws_instance.application.private_ip
+    ssh_key    = var.key_name
+  })
+}
