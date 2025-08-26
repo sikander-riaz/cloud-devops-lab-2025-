@@ -159,6 +159,8 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids      = [aws_security_group.public_sg.id]
   associate_public_ip_address = true
   key_name                    = var.key_name
+  # key_name = aws_key_pair.sik_key.key_name
+
 
   root_block_device {
     volume_type = "gp3"
@@ -179,6 +181,8 @@ resource "aws_instance" "application" {
   vpc_security_group_ids      = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
   key_name                    = var.key_name
+# key_name = aws_key_pair.sik_key.key_name
+
 
   root_block_device {
     volume_type = "gp2"
@@ -276,22 +280,10 @@ output "private_sg_id" {
 
 
 
-# resource "local_file" "ansible_inventory" {
-#   filename = "${path.module}/inventory.ini"
-
-#   content = templatefile("${path.module}/inventory.tmpl", {
-#     bastion_ip = aws_instance.bastion.public_ip
-#     app_ip     = aws_instance.application.private_ip
-#     ssh_key    = var.key_name
-#   })
-# }
 
 
 
-variable "app_ip" {
-  description = "Private IP of the application server"
-  type        = string
-}
+
 variable "ssh_key" {
   description = "SSH private key filename (without path)"
   type        = string
@@ -308,3 +300,77 @@ resource "local_file" "ansible_inventory" {
     ${aws_instance.bastion.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/${var.ssh_key}
   EOT
 }
+
+
+
+  ## Create IAM role for EC2 (S3 + CloudWatch access).
+  resource "aws_iam_role" "ec2_role" {
+    name = var.name
+    assume_role_policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Principal = {
+            Service = "ec2.amazonaws.com"
+          }
+          Action = "sts:AssumeRole"
+        }
+      ]
+    })
+  }
+
+  resource "aws_iam_role_policy_attachment" "s3_access" {
+    role       = aws_iam_role.ec2_role.name
+    policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  }
+
+  resource "aws_iam_role_policy_attachment" "cloudwatch_logs_access" {
+    role       = aws_iam_role.ec2_role.name
+    policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+  }
+
+  resource "aws_iam_role_policy_attachment" "cloudwatch_monitoring_access" {
+    role       = aws_iam_role.ec2_role.name
+    policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+  }
+
+
+  variable "name" {
+    type    = string
+    default = "ec2-role"
+  }
+
+
+  output "ec2_role_arn" {
+    value = aws_iam_role.ec2_role.arn
+  }
+
+
+
+  resource "aws_cloudwatch_log_group" "log_group" {
+    name              = var.log_group_name
+    retention_in_days = var.retention_days
+  }
+
+  resource "aws_cloudwatch_log_stream" "log_stream" {
+    name           = "sikander-log-stream"
+    log_group_name = aws_cloudwatch_log_group.log_group.name
+  }
+
+
+  variable "log_group_name" {
+    description = "The name of the CloudWatch log group"
+    type        = string
+    default     = "sikander-log-group"
+  }
+
+  variable "retention_days" {
+    description = "The number of days to retain the logs in the CloudWatch log group"
+    type        = number
+    default     = 7
+  }
+
+
+
+
