@@ -168,14 +168,6 @@ resource "aws_instance" "bastion" {
   tags = {
     Name = "BastionHost"
   }
-  user_data = <<-EOF
-
-  #!/bin/bash
-   set -e
-  sudo apt update 
-  sudo apt upgrade -y
-  sudo apt install ansible -y
-  EOF
 
 }
 
@@ -196,15 +188,6 @@ resource "aws_instance" "application" {
   tags = {
     Name = "AppServer"
   }
-  user_data = <<-EOF
-  #!/bin/bash
-  sudo apt update -y
-
-  
-  sudo apt install -y ansible
-
-  ansible —version
-EOF
 
 }
 
