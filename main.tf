@@ -293,12 +293,33 @@ output "private_sg_id" {
 
 
 
-resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/inventory.ini"
+# resource "local_file" "ansible_inventory" {
+#   filename = "${path.module}/inventory.ini"
 
-  content = templatefile("${path.module}/inventory.tmpl", {
-    bastion_ip = aws_instance.bastion.public_ip
-    app_ip     = aws_instance.application.private_ip
-    ssh_key    = var.key_name
-  })
+#   content = templatefile("${path.module}/inventory.tmpl", {
+#     bastion_ip = aws_instance.bastion.public_ip
+#     app_ip     = aws_instance.application.private_ip
+#     ssh_key    = var.key_name
+#   })
+# }
+
+
+
+variable "app_ip" {
+  description = "Private IP of the application server"
+  type        = string
+}
+variable "ssh_key" {
+  description = "SSH private key filename (without path)"
+  type        = string
+  default     = "sik.pem"
+}
+
+resource "local_file" "ansible_inventory" {
+  filename = "${path.module}/hosts.ini"
+
+  content = <<-EOT
+    [appservers]
+    ${aws_instance.application.private_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/${var.ssh_key} ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -q ubuntu@${aws_instance.bastion.public_ip} -i ~/.ssh/${var.ssh_key}"'
+  EOT
 }
