@@ -302,7 +302,9 @@ resource "local_file" "ansible_inventory" {
   filename = "${path.module}/hosts.ini"
 
   content = <<-EOT
-    [appservers]
+    [appserver]
     ${aws_instance.application.private_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/${var.ssh_key} ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -q ubuntu@${aws_instance.bastion.public_ip} -i ~/.ssh/${var.ssh_key}"'
+    [bastion]
+    ${aws_instance.bastion.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/${var.ssh_key}
   EOT
 }
