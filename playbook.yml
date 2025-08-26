@@ -1,4 +1,3 @@
----
 - name: Setup Docker and Python on all ECS instances
   hosts: all
   become: true
@@ -59,22 +58,26 @@
         name: docker
         state: started
         enabled: yes
+
     - name: Ensure group "docker" exists
-      ansible.builtin.group:
+      group:
         name: docker
         state: present
-    - name: adding ubuntu to docker group
+
+    - name: Add 'ubuntu' user to docker group
       user:
         name: ubuntu
         groups: docker
         append: yes
+
     - name: Install docker-compose
       get_url:
         url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
         dest: /usr/local/bin/docker-compose
         mode: "u+x,g+x"
-    - name: Change file ownership, group and permissions
-      ansible.builtin.file:
+
+    - name: Change ownership of docker-compose binary
+      file:
         path: /usr/local/bin/docker-compose
         owner: ubuntu
         group: ubuntu
@@ -83,3 +86,28 @@
       apt:
         name: python3
         state: present
+
+    # Fail2Ban Setup
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+      notify: Restart SSH
+
+    - name: Set password expiration policy
+      lineinfile:
+        path: /etc/login.defs
+        regexp: "^PASS_MAX_DAYS"
+        line: "PASS_MAX_DAYS 90"
+
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: ssh
+        state: restarted
