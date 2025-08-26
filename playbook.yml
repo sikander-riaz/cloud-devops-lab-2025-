@@ -106,6 +106,20 @@
         name: fail2ban
         state: present
 
+    - name: Create DevOps user
+      user:
+        name: devops
+        shell: /bin/bash
+        state: present
+
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+        state: present
+      notify: Restart SSH
+
   handlers:
     - name: Restart SSH
       systemd:
