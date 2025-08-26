@@ -1,0 +1,109 @@
+version: "3.8"
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    restart: always
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - sonarqube
+
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    restart: always
+    ports:
+      - "9000:9000"
+    networks:
+      - sonarnet
+    environment:
+      - sonar.jdbc.url=jdbc:postgresql://postgres:5432/sonar
+      - sonar.jdbc.username=sonar
+      - sonar.jdbc.password=sonar
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    restart: always
+    networks:
+      - sonarnet
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - metrics_data:/prometheus
+    networks:
+      - monitoring
+  
+
+  grafana-init:
+    image: busybox
+    command: chown -R 472:472 /var/lib/grafana
+    volumes:
+      - metrics_data:/var/lib/grafana
+    restart: "no"
+
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - grafana-init
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=sonar
+    volumes:
+      - metrics_data:/var/lib/grafana
+    networks:
+      - monitoring
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - monitoring
+
+networks:
+  sonarnet:
+    driver: bridge
+  monitoring:
+    driver: bridge
+
+volumes:
+  
+  jenkins_data:
+
+  
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
+  postgres_data:
+
+  
+  metrics_data:
