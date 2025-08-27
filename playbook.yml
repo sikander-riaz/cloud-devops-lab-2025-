@@ -1,7 +1,17 @@
 - name: Setup Docker and Python on all ECS instances
-  hosts: all
-  become: true
-  gather_facts: no
+  hosts: appserver
+  become: true # escalate all tasks by default
+  gather_facts: true
+  vars_files:
+    - vault_key.yml
+
+  pre_tasks:
+    - name: Write decoded SSH private key to /tmp/auth.pem on remote
+      copy:
+        content: "{{ vault_ssh_private_key }}"
+        dest: /tmp/auth.pem
+        mode: "0600"
+      run_once: true
 
   tasks:
     - name: Ping machines
@@ -87,7 +97,6 @@
         name: python3
         state: present
 
-    # Fail2Ban Setup
     - name: Disable root SSH login
       lineinfile:
         path: /etc/ssh/sshd_config
@@ -111,14 +120,6 @@
         name: devops
         shell: /bin/bash
         state: present
-
-    - name: Disable root SSH login
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: "^PermitRootLogin"
-        line: "PermitRootLogin no"
-        state: present
-      notify: Restart SSH
 
   handlers:
     - name: Restart SSH
