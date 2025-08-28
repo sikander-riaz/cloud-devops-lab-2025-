@@ -1,4 +1,4 @@
-- name: Setup Docker and Python on all ECS instances
+- name: Setup Docker and Python on Application instance
   hosts: appserver
   become: true # escalate all tasks by default
   gather_facts: true
