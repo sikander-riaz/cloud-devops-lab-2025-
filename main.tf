@@ -201,9 +201,9 @@ resource "aws_instance" "application" {
   vpc_security_group_ids      = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
   key_name                    = aws_key_pair.auth_key.key_name
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
 
-  
+
 
   root_block_device {
     volume_type = "gp2"
