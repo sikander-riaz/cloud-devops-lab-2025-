@@ -196,7 +196,7 @@ resource "aws_instance" "bastion" {
 
 resource "aws_instance" "application" {
   ami                         = lookup(var.AmiLinux, var.region)
-  instance_type               = "t3.micro"
+  instance_type               = "t3.medium"
   subnet_id                   = aws_subnet.private_subnet.id
   vpc_security_group_ids      = [aws_security_group.private_sg.id]
   associate_public_ip_address = false
@@ -206,8 +206,8 @@ resource "aws_instance" "application" {
 
 
   root_block_device {
-    volume_type = "gp2"
-    volume_size = 20
+    volume_type = "gp3"
+    volume_size = 25
   }
 
   tags = {
