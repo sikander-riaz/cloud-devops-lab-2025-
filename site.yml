@@ -1,0 +1,14 @@
+- name: Deploy app through bastion
+  hosts: appserver
+  vars_files:
+    - vault_key.yml
+
+  tasks:
+    - name: Write vaulted key to file
+      copy:
+        dest: "~/.ssh/id_rsa_app"
+        content: "{{ vault_ssh_private_key }}"
+        mode: "0600"
+
+    - name: Run whoami on app server
+      command: whoami

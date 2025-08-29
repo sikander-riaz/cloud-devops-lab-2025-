@@ -1,19 +1,21 @@
 
 services:
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
     container_name: jenkins
     restart: always
+    user: root
     ports:
       - "${JENKINS_PORT:-8080}:8080"
+      
     environment:
-      - JENKINS_ADMIN_USER=${JENKINS_ADMIN_USER:-admin}
-      - JENKINS_ADMIN_PASS=${JENKINS_ADMIN_PASS:-admin}
       - JAVA_OPTS=-Djenkins.model.Jenkins.contextPath=/jenkins -Dhudson.security.csrf.GlobalCrumbIssuerConfiguration.DISABLE_CSRF_PROTECTION=true
     volumes:
       - jenkins_data:/var/jenkins_home
       - ./jenkins/init.groovy.d:/var/jenkins_home/init.groovy.d
-      - /var/run/docker.sock:/var/run/docker.sock
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - /usr/bin/docker:/usr/bin/docker
     depends_on:
       - sonarqube
     networks:
