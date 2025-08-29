@@ -1,6 +1,6 @@
 - name: Setup Docker and Python on Application instance
   hosts: appserver
-  become: true # escalate all tasks by default
+  become: true
   gather_facts: true
   vars_files:
     - vault_key.yml
@@ -32,26 +32,24 @@
           - lsb-release
         state: present
 
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
     - name: Add Docker GPG key
-      shell: |
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
-      args:
-        creates: /etc/apt/keyrings/docker.asc
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+        force: no
 
     - name: Add Docker APT repository
-      shell: |
-        echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-        $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
-        tee /etc/apt/sources.list.d/docker.list > /dev/null
-      args:
-        creates: /etc/apt/sources.list.d/docker.list
-
-    - name: Update apt cache after adding Docker repo
-      apt:
-        update_cache: yes
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_facts.lsb.codename }} stable"
+        state: present
+        filename: docker
 
     - name: Install Docker packages
       apt:
@@ -61,7 +59,7 @@
           - containerd.io
           - docker-buildx-plugin
           - docker-compose-plugin
-        state: latest
+        state: present
 
     - name: Enable and start Docker service
       service:
@@ -80,17 +78,12 @@
         groups: docker
         append: yes
 
-    - name: Install docker-compose
+    - name: Install docker-compose binary
       get_url:
         url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
         dest: /usr/local/bin/docker-compose
-        mode: "u+x,g+x"
-
-    - name: Change ownership of docker-compose binary
-      file:
-        path: /usr/local/bin/docker-compose
-        owner: ubuntu
-        group: ubuntu
+        mode: "0755"
+        force: no # don’t overwrite if already installed
 
     - name: Ensure Python 3 is installed
       apt:
@@ -120,6 +113,35 @@
         name: devops
         shell: /bin/bash
         state: present
+
+    # - name: Copy docker-compose file
+    #   copy:
+    #     src: ./docker-compose.yml
+    #     dest: /home/ubuntu/docker-compose.yml
+    #     owner: ubuntu
+    #     group: ubuntu
+    #     mode: "0644"
+
+    # - name: Copy Dockerfile for Jenkins
+    #   copy:
+    #     src: ./Dockerfile # your local path to Jenkins Dockerfile
+    #     dest: /home/ubuntu/Dockerfile
+    #     owner: ubuntu
+    #     group: ubuntu
+    #     mode: "0644"
+
+    # - name: Copy nginx.conf
+    #   copy:
+    #     src: ./nginx.conf # local path in your repo
+    #     dest: /home/ubuntu/nginx.conf
+    #     owner: ubuntu
+    #     group: ubuntu
+    #     mode: "0644"
+
+    # - name: Start services with docker-compose
+    #   command: docker-compose -f /home/ubuntu/docker-compose.yml up -d
+    #   args:
+    #     chdir: /home/ubuntu
 
   handlers:
     - name: Restart SSH
