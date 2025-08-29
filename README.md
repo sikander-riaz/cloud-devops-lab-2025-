@@ -56,7 +56,7 @@ ansible-playbook -i hosts.ini playbook.yml --ask-vault-pass
 ```bash
 
 docker compose build jenkins
-docker compose up -d
+docker-compose up -d
 
 
 
