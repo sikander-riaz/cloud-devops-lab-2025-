@@ -1,0 +1,116 @@
+---
+# First play: Fix permissions as root
+- name: Setup directories for devops user
+  hosts: appserver
+  become: true
+  gather_facts: false
+
+  vars:
+    remote_stack_dir: /home/devops/devops-stack
+
+  tasks:
+    - name: Ensure devops home directory exists and has correct ownership
+      file:
+        path: /home/devops
+        state: directory
+        owner: devops
+        group: devops
+        mode: "0755"
+
+    - name: Ensure target dir exists
+      file:
+        path: "{{ remote_stack_dir }}"
+        state: directory
+        owner: devops
+        group: devops
+        mode: "0755"
+
+# Second play: Deploy as devops user
+- name: Deploy Docker stack as devops
+  hosts: appserver
+  remote_user: devops
+  become: false
+  gather_facts: false
+
+  vars:
+    local_files_dir: ../docker-files
+    remote_stack_dir: /home/devops/devops-stack
+
+  tasks:
+    - name: Test connection as devops user
+      ping:
+
+    # Debug: Check what's in local docker-files directory
+    - name: List local docker-files directory
+      find:
+        paths: "{{ local_files_dir }}"
+        recurse: yes
+      delegate_to: localhost
+      register: local_files
+
+    - name: Show local files found
+      debug:
+        msg: "Local files: {{ local_files.files | map(attribute='path') | list }}"
+
+    # Copy entire directory
+    - name: Copy docker-files directory to remote
+      copy:
+        src: "{{ local_files_dir }}/"
+        dest: "{{ remote_stack_dir }}/"
+        owner: devops
+        group: devops
+      become: true
+
+    # Debug: Check what was copied to remote
+    - name: List files in remote stack directory
+      find:
+        paths: "{{ remote_stack_dir }}"
+        recurse: yes
+      register: remote_files
+
+    - name: Show remote files found
+      debug:
+        msg: "Remote files: {{ remote_files.files | map(attribute='path') | list }}"
+
+    # Debug: Check specifically for docker-compose files
+    - name: Look for docker-compose files
+      find:
+        paths: "{{ remote_stack_dir }}"
+        patterns:
+          - "docker-compose*.yml"
+          - "docker-compose*.yaml"
+        recurse: yes
+      register: compose_files
+
+    - name: Add devops user to docker group
+      user:
+        name: devops
+        groups: docker
+        append: yes
+      become: true
+
+    - name: Show docker-compose files found
+      debug:
+        msg: "Docker compose files: {{ compose_files.files | map(attribute='path') | list }}"
+
+    - name: Check if docker-compose.yml exists
+      stat:
+        path: "{{ remote_stack_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Show docker-compose.yml stat result
+      debug:
+        var: compose_file
+
+    # Continue only if docker-compose file found
+    - name: Build and start containers with docker compose
+      command: docker-compose up -d --build
+      args:
+        chdir: "{{ remote_stack_dir }}"
+      register: docker_compose_result
+      when: compose_files.files | length > 0
+
+    - name: Show docker compose output
+      debug:
+        var: docker_compose_result.stdout_lines
+      when: docker_compose_result is defined
