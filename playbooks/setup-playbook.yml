@@ -1,0 +1,183 @@
+---
+- name: Setup Docker and Python on Application instance
+  hosts: appserver
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../vault_key.yml
+
+  pre_tasks:
+    - name: Debug vault variable
+      debug:
+        msg: "vault_ssh_private_key is {{ 'defined' if vault_ssh_private_key is defined else 'not defined' }}"
+
+    - name: Write decoded SSH private key to /tmp/auth.pem on remote
+      copy:
+        content: "{{ vault_ssh_private_key }}"
+        dest: /tmp/auth.pem
+        mode: "0600"
+      run_once: true
+
+  tasks:
+    - name: Ping machine
+      ping:
+
+    # 1. Update System First
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+        cache_valid_time: 3600
+
+    # 2. Create DevOps User
+    - name: Create DevOps user
+      user:
+        name: devops
+        shell: /bin/bash
+        state: present
+        create_home: yes
+        groups: docker # <-- ensure user is in docker group at creation
+        append: yes
+    - name: Reset SSH connection to apply new group membership
+      meta: reset_connection
+
+    # 3. SSH Hardening
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+      notify: Restart SSH
+
+    - name: Set password expiration policy
+      lineinfile:
+        path: /etc/login.defs
+        regexp: "^PASS_MAX_DAYS"
+        line: "PASS_MAX_DAYS 90"
+
+    # 4. Install Fail2Ban
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+
+    - name: Configure Fail2Ban
+      copy:
+        dest: /etc/fail2ban/jail.local
+        mode: "0644"
+        content: |
+          [DEFAULT]
+          bantime = 600
+          findtime = 600
+          maxretry = 5
+
+          [sshd]
+          enabled = true
+      notify:
+        - Restart Fail2Ban
+
+    # 5. Install Dependencies for Docker
+    - name: Install required packages for Docker repo
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Ensure /etc/apt/keyrings exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    # 6. Add Docker GPG Key and Repository
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+        force: no
+
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_facts.lsb.codename }} stable"
+        state: present
+        filename: docker
+
+    # 7. Install Docker and Docker Compose
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Enable and start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ensure group "docker" exists
+      group:
+        name: docker
+        state: present
+
+    - name: Add 'devops' user to docker group
+      user:
+        name: devops
+        groups: docker
+        append: yes
+
+    - name: Ensure Docker socket permissions
+      file:
+        path: /var/run/docker.sock
+        owner: root
+        group: docker
+        mode: "0660"
+
+    - name: Install docker-compose binary
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+        force: no
+
+    - name: Ensure Python 3 is installed
+      apt:
+        name: python3
+        state: present
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Reset SSH connection to apply new group membership
+      meta: reset_connection
+
+    - name: Verify devops can run docker ps
+      command: docker ps
+      become: false
+      become_user: devops
+      register: docker_check
+
+    - debug:
+        var: docker_check.stdout_lines
+
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: ssh
+        state: restarted
+
+    - name: Restart Fail2Ban
+      systemd:
+        name: fail2ban
+        state: restarted
